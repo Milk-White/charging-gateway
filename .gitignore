@@ -1,0 +1,5 @@
+/build/
+/target/
+/data/
+/.idea/
+*.iml
