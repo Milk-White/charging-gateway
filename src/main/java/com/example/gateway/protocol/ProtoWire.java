@@ -9,7 +9,7 @@ import java.util.Arrays;
 /**
  * 项目内部使用的最小 Protobuf wire 编解码工具。
  *
- * <p>用途：仅实现本项目需要的 varint、fixed64 和 length-delimited 类型，避免引入第三方
+ * <p>用途：仅实现本项目需要的 varint、fixed32、fixed64 和 length-delimited 类型，避免引入第三方
  * Protobuf 运行库。它不是完整的通用 Protobuf 实现。</p>
  */
 final class ProtoWire {
@@ -47,6 +47,14 @@ final class ProtoWire {
         out.writeBytes(ByteBuffer.allocate(8)
                 .order(ByteOrder.LITTLE_ENDIAN)
                 .putLong(Double.doubleToRawLongBits(value))
+                .array());
+    }
+
+    static void writeFloat(ByteArrayOutputStream out, int field, float value) {
+        writeTag(out, field, FIXED32);
+        out.writeBytes(ByteBuffer.allocate(4)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(Float.floatToRawIntBits(value))
                 .array());
     }
 
@@ -115,6 +123,15 @@ final class ProtoWire {
                     .order(ByteOrder.LITTLE_ENDIAN)
                     .getDouble();
             position += 8;
+            return value;
+        }
+
+        float readFloat() {
+            require(4);
+            float value = ByteBuffer.wrap(data, position, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getFloat();
+            position += 4;
             return value;
         }
 

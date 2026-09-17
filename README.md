@@ -1,6 +1,6 @@
 # 充电桩平台设备接入网关
 
-这是一个可直接运行和讲解的 Java 21 最小系统，覆盖任务要求中的报文解析、严格协议校验、设备登记校验、字段校验、异常处理、持久化、最新状态查询和历史记录查询。项目没有第三方运行时依赖，IntelliJ IDEA 可直接打开项目根目录或 `pom.xml`。
+这是一个可直接运行和讲解的 Java 21 充电桩设备接入网关，完整支持功能码 101 登录、102 心跳和 103 实时数据推送。系统包含登录会话、枪与点位通用数据模型、周期与变化推送、失败重试、HTTP 调试通道、可选 MQTT 5.0 接入、双层持久化、查询接口和中文监控大屏。项目没有第三方运行时依赖，IntelliJ IDEA 可直接打开项目根目录或 `pom.xml`。
 
 ## 快速开始
 
@@ -18,7 +18,9 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\demo.ps1
 ```
 
-也可在 IDEA 中运行 `com.example.gateway.GatewayApplication`。正式自测入口是 `build.ps1`，成功时应显示 `PASS: 15 tests`；在 IDEA 中也可直接运行 `com.example.gateway.AllTests`。
+也可在 IDEA 中运行 `com.example.gateway.GatewayApplication`。正式自测入口是 `build.ps1`，成功时应显示 `PASS: 24 tests`；在 IDEA 中也可直接运行 `com.example.gateway.AllTests`。
+
+服务启动后执行 `protocol-demo.ps1`，可一次验证未登录拦截、101 登录、102 心跳以及 PUBLIC、REALTIME、IDLE、CHARGING、SPECIAL 五类 103 推送。执行 `device-simulator.ps1` 会持续运行设备侧调度器，执行登录校时、30 秒心跳、文档规定的周期/变化推送及失败重试。
 
 ## 监控大屏
 
@@ -41,6 +43,10 @@ Set-ExecutionPolicy -Scope Process Bypass
 - `POST /api/reports`：接收 Base64 编码的二进制协议帧；请求体可直接为 Base64 文本，也可为 `{"frameBase64":"..."}`。
 - `GET /api/devices/{sn}/latest`：查询设备最新状态。
 - `GET /api/devices/{sn}/history?limit=100`：查询设备历史上报，最新记录在前，`limit` 范围为 1 到 1000。
+- `POST /api/protocol/{sn}`：正式协议调试入口；请求和响应均为 Base64 编码的 Protobuf wire 帧，支持 101、102、103。
+- `GET /api/sessions`：查询 5 分钟活动窗口内的设备登录会话。
+
+正式生产传输可启用 MQTT 5.0：网关订阅 `charging/tocloud/+/protobuf/general`，并把同序号、同功能码响应发布到 `charging/todev/{sn}/protobuf/general`。MQTT 载荷为原始 Protobuf wire 字节，QoS 为 0。
 
 模拟上报示例：
 
@@ -64,7 +70,11 @@ Set-ExecutionPolicy -Scope Process Bypass
 -Dgateway.port=8080
 -Dgateway.data=data
 -Dgateway.secret=demo-secret
--Dgateway.devices=pile001,pile002,pile003
+-Dgateway.credentials=pile001:pwd001,pile002:pwd002,pile003:pwd003
+-Dgateway.mqtt.enabled=false
+-Dgateway.mqtt.host=localhost
+-Dgateway.mqtt.port=1883
+-Dgateway.mqtt.clientId=charging-gateway
 ```
 
 生产部署必须通过安全配置中心或环境注入替换默认密钥，不能把真实密钥提交到 Git。
@@ -84,12 +94,31 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 ## 目录
 
+### 文件与职责
+
+| 文件 | 负责的功能 |
+| --- | --- |
+| `GatewayApplication.java` | 读取端口、密钥、设备凭据和 MQTT 配置，装配并启动组件 |
+| `GatewayHttpServer.java` | HTTP 路由、网页、Base64 协议入口、会话和查询接口 |
+| `ChargingProtocolCodec.java` | 101/102/103 外层帧、MD5、登录数据和正式响应 |
+| `ChargingValueCodec.java` | 103 枪列表、点位列表以及五种 oneof 值 |
+| `DeviceSessionService.java` | 用户名密码校验、登录态、最后活动时间和 5 分钟失效 |
+| `DeviceProtocolService.java` | 功能码分派、登录前置约束、响应码和双层持久化 |
+| `PushSchedulePolicy.java` | 周期推送、变化推送、登录超时与失败重试时间 |
+| `DeviceSimulatorApplication.java` | 登录校时、心跳、连续推送和重试 |
+| `Mqtt5GatewayAdapter.java` | MQTT 5.0 CONNECT、SUBSCRIBE、QoS 0 PUBLISH、PING 和重连 |
+| `FileRealtimePushRepository.java` | 完整 103 枪/点位载荷保存到 `realtime-pushes.tsv` |
+| `FileReportRepository.java` | 网页摘要保存到 `reports.tsv` 并维护查询索引 |
+| `dashboard.html` | 登录状态、设备状态、趋势图、历史表和快速模拟上报 |
+
 ```text
 src/main/java      业务源码
 src/main/resources 内置监控大屏页面
-src/test/java      15 项无第三方依赖的自测
+src/test/java      24 项无第三方依赖的自测
 DESIGN.md          架构、选型、风险和自测说明
 build.ps1          编译并运行测试
 run.ps1            编译、测试并启动服务
 demo.ps1           端到端演示脚本
+protocol-demo.ps1  101/102/五类 103 一次性演示
+device-simulator.ps1 按协议周期持续运行设备模拟器
 ```

@@ -272,11 +272,12 @@
         <div class="brand-mark" aria-hidden="true">⚡</div>
         <div>
           <h1>充电桩设备接入网关</h1>
-          <div class="subtitle">实时状态 · 协议校验 · 历史趋势 · 模拟上报</div>
+          <div class="subtitle">101 登录 · 102 心跳 · 103 实时推送 · MQTT 5.0</div>
         </div>
       </div>
       <div class="header-meta">
         <div class="badge"><span id="healthDot" class="dot"></span><span id="healthText">正在连接</span></div>
+        <div class="badge"><span id="sessionDot" class="dot"></span><span id="sessionText">0 台已登录</span></div>
         <div id="clock" class="clock">--</div>
       </div>
     </header>
@@ -350,7 +351,7 @@
           <div class="panel-head">
             <div>
               <div class="panel-title">模拟设备上报</div>
-              <div class="panel-note">数据仍会经过协议编码、验签和业务校验</div>
+              <div class="panel-note">快速兼容入口；完整 101/102/103 请运行 device-simulator.ps1</div>
             </div>
           </div>
           <div class="panel-body">
@@ -383,7 +384,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script>
-    const state = { devices: [], selected: '', history: [], timer: null };
+    const state = { devices: [], sessions: [], selected: '', history: [], timer: null };
     const $ = id => document.getElementById(id);
     const statusLabels = { CHARGING: '充电中', IDLE: '空闲', FAULT: '故障', OFFLINE: '离线' };
 
@@ -467,12 +468,15 @@
     }
 
     function renderDeviceList() {
+      const active = new Set(state.sessions.map(session => session.deviceSn));
       $('deviceList').replaceChildren(...state.devices.map(device => {
         const pill = document.createElement('span');
         pill.className = `device-pill${device === state.selected ? ' active' : ''}`;
-        pill.textContent = device;
+        pill.textContent = `${device}${active.has(device) ? ' · 已登录' : ' · 未登录'}`;
         return pill;
       }));
+      $('sessionDot').className = `dot ${state.sessions.length ? 'up' : ''}`;
+      $('sessionText').textContent = `${state.sessions.length} 台已登录`;
     }
 
     function renderLatest(report) {
@@ -595,6 +599,7 @@
         try { latest = await api(`/api/devices/${encodeURIComponent(state.selected)}/latest`); }
         catch (error) { if (error.status !== 404) throw error; }
         state.history = await api(`/api/devices/${encodeURIComponent(state.selected)}/history?limit=50`);
+        state.sessions = await api('/api/sessions');
         renderLatest(latest);
         renderHistory();
         renderDeviceList();

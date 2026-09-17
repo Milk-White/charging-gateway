@@ -10,6 +10,7 @@ import com.example.gateway.http.DashboardTests;
 import com.example.gateway.repository.FileReportRepository;
 import com.example.gateway.service.ReportService;
 import com.example.gateway.service.ValidationException;
+import com.example.gateway.service.FullProtocolTests;
 
 import java.nio.file.Files;
 import java.time.Instant;
@@ -18,7 +19,7 @@ import java.time.Instant;
  * 不依赖第三方测试框架的项目自测入口。
  *
  * <p>用途：验证协议编解码、签名拒绝、严格格式检查、设备登记、文件持久化及字段校验。
- * 运行成功时输出 {@code PASS: 15 tests}。</p>
+ * 运行成功时输出 {@code PASS: 24 tests}。</p>
  */
 public final class AllTests {
     private static int tests;
@@ -32,6 +33,7 @@ public final class AllTests {
         tests += ProtocolEdgeTests.run();
         tests += JsonTests.run();
         tests += DashboardTests.run();
+        tests += FullProtocolTests.run();
         System.out.println("PASS: " + tests + " tests");
     }
 

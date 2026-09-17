@@ -5,6 +5,7 @@ import com.example.gateway.domain.ChargingStatus;
 import com.example.gateway.protocol.ChargingProtocolCodec;
 import com.example.gateway.protocol.ProtocolException;
 import com.example.gateway.service.ReportService;
+import com.example.gateway.service.DeviceProtocolService;
 import com.example.gateway.service.ValidationException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -30,11 +31,14 @@ public final class GatewayHttpServer {
     private final HttpServer server;
     private final ReportService service;
     private final ChargingProtocolCodec codec;
+    private final DeviceProtocolService protocolService;
     private final AtomicInteger simulatorSequence = new AtomicInteger(1);
 
-    public GatewayHttpServer(int port, ReportService service, ChargingProtocolCodec codec) throws IOException {
+    public GatewayHttpServer(int port, ReportService service, ChargingProtocolCodec codec,
+                             DeviceProtocolService protocolService) throws IOException {
         this.service = service;
         this.codec = codec;
+        this.protocolService = protocolService;
         this.server = HttpServer.create(new InetSocketAddress(port), 0);
         // 每个请求使用一个 Java 21 虚拟线程，适合大量 I/O 型设备连接的演示。
         this.server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
@@ -43,7 +47,36 @@ public final class GatewayHttpServer {
         this.server.createContext("/api/reports", this::acceptFrame);
         this.server.createContext("/api/simulator/report", this::simulateReport);
         this.server.createContext("/api/devices", this::queryDevice);
+        this.server.createContext("/api/protocol", this::protocolFrame);
+        this.server.createContext("/api/sessions", this::sessions);
         this.server.createContext("/", this::dashboard);
+    }
+
+    /** HTTP 调试通道：路径提供设备 SN，请求和响应正文均为 Base64 协议帧。 */
+    private void protocolFrame(HttpExchange exchange) throws IOException {
+        if (!method(exchange, "POST")) {
+            return;
+        }
+        String[] parts = exchange.getRequestURI().getPath().split("/");
+        if (parts.length != 4 || parts[3].isBlank()) {
+            send(exchange, 404, Json.error("NOT_FOUND", "Expected /api/protocol/{sn}"));
+            return;
+        }
+        try {
+            String encoded = readBody(exchange).trim();
+            byte[] request = Base64.getDecoder().decode(encoded);
+            var handled = protocolService.handle(parts[3], request);
+            sendText(exchange, 200, Base64.getEncoder().encodeToString(handled.responseFrame()));
+        } catch (IllegalArgumentException | ProtocolException | ValidationException exception) {
+            send(exchange, 400, Json.error("INVALID_PROTOCOL_FRAME", exception.getMessage()));
+        }
+    }
+
+    private void sessions(HttpExchange exchange) throws IOException {
+        if (!method(exchange, "GET")) {
+            return;
+        }
+        send(exchange, 200, Json.sessions(protocolService.sessions().activeSessions()));
     }
 
     public void start() {
@@ -201,6 +234,16 @@ public final class GatewayHttpServer {
         byte[] body = json.getBytes(StandardCharsets.UTF_8);
         // 所有接口统一返回 UTF-8 JSON，并禁止缓存设备实时状态响应。
         exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
+        exchange.sendResponseHeaders(status, body.length);
+        try (var output = exchange.getResponseBody()) {
+            output.write(body);
+        }
+    }
+
+    private static void sendText(HttpExchange exchange, int status, String value) throws IOException {
+        byte[] body = value.getBytes(StandardCharsets.US_ASCII);
+        exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=us-ascii");
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.sendResponseHeaders(status, body.length);
         try (var output = exchange.getResponseBody()) {

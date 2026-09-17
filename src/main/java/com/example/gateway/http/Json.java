@@ -1,6 +1,7 @@
 package com.example.gateway.http;
 
 import com.example.gateway.domain.ChargingReport;
+import com.example.gateway.service.DeviceSessionService;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,6 +69,20 @@ final class Json {
                 out.append(',');
             }
             out.append('"').append(escape(values.get(i))).append('"');
+        }
+        return out.append(']').toString();
+    }
+
+    static String sessions(List<DeviceSessionService.SessionView> values) {
+        StringBuilder out = new StringBuilder("[");
+        for (int index = 0; index < values.size(); index++) {
+            if (index > 0) {
+                out.append(',');
+            }
+            var value = values.get(index);
+            out.append("{\"deviceSn\":\"").append(escape(value.deviceSn()))
+                    .append("\",\"loggedInAt\":").append(value.loggedInAt())
+                    .append(",\"lastSeenAt\":").append(value.lastSeenAt()).append('}');
         }
         return out.append(']').toString();
     }

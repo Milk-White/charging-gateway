@@ -66,6 +66,18 @@ public final class ReportService {
         return report;
     }
 
+    /** 接收已经由完整 103 点位协议转换出的摘要，仍执行相同业务校验和落库。 */
+    public ChargingReport acceptDecoded(ChargingReport report) throws IOException {
+        validate(report);
+        repository.save(report);
+        return report;
+    }
+
+    /** 在多文件事务前预检摘要，保证非法点位不会写入任何持久化文件。 */
+    public void validateDecoded(ChargingReport report) {
+        validate(report);
+    }
+
     /** 查询设备最新状态；查询前同样校验设备编号格式。 */
     public Optional<ChargingReport> latest(String deviceSn) {
         validateSn(deviceSn);
