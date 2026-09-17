@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 交给下层组件处理，使接入方式与核心业务解耦。</p>
  */
 public final class GatewayHttpServer {
+    static final int MAX_REQUEST_BODY_LENGTH = ((ChargingProtocolCodec.MAX_FRAME_LENGTH + 2) / 3) * 4 + 2_048;
     private final HttpServer server;
     private final ReportService service;
     private final ChargingProtocolCodec codec;
@@ -66,7 +67,9 @@ public final class GatewayHttpServer {
         try {
             // 正式入口接收 Base64 文本，也兼容 {"frameBase64":"..."} 包装格式。
             String body = readBody(exchange);
-            String encoded = body.trim().startsWith("{") ? Json.string(body, "frameBase64") : body.trim();
+            String encoded = body.trim().startsWith("{")
+                    ? Json.string(Json.object(body), "frameBase64")
+                    : body.trim();
             // 解码 Base64 后交给业务服务；服务内部继续完成协议解码、校验和保存。
             ChargingReport report = service.acceptFrame(Base64.getDecoder().decode(encoded));
             send(exchange, 201, Json.report(report));
@@ -82,11 +85,12 @@ public final class GatewayHttpServer {
         try {
             // JSON 仅用于方便现场演示，先将字段转换为领域对象。
             String body = readBody(exchange);
-            String sn = Json.string(body, "deviceSn");
-            ChargingStatus status = ChargingStatus.valueOf(Json.string(body, "status").toUpperCase());
-            double voltage = Json.number(body, "voltage");
-            double current = Json.number(body, "current");
-            String faultCode = Json.string(body, "faultCode");
+            var json = Json.object(body);
+            String sn = Json.string(json, "deviceSn");
+            ChargingStatus status = ChargingStatus.valueOf(Json.string(json, "status").toUpperCase());
+            double voltage = Json.number(json, "voltage");
+            double current = Json.number(json, "current");
+            String faultCode = Json.string(json, "faultCode");
             long now = Instant.now().getEpochSecond();
             ChargingReport simulated = new ChargingReport(sn, status, voltage, current, faultCode,
                     now, simulatorSequence.getAndIncrement(), 0);
@@ -159,8 +163,8 @@ public final class GatewayHttpServer {
 
     private static String readBody(HttpExchange exchange) throws IOException {
         // 限制请求体大小，避免异常大报文占用过多内存。
-        byte[] bytes = exchange.getRequestBody().readNBytes(70_000);
-        if (bytes.length > ChargingProtocolCodec.MAX_FRAME_LENGTH + 1_000) {
+        byte[] bytes = exchange.getRequestBody().readNBytes(MAX_REQUEST_BODY_LENGTH + 1);
+        if (bytes.length > MAX_REQUEST_BODY_LENGTH) {
             throw new IllegalArgumentException("Request body is too large");
         }
         return new String(bytes, StandardCharsets.UTF_8);

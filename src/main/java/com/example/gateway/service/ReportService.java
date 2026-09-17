@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -21,17 +22,32 @@ public final class ReportService {
     // 设备编号只允许 1-32 位 ASCII 字母或数字，避免特殊字符进入索引和存储文件。
     private static final Pattern SN = Pattern.compile("[0-9A-Za-z]{1,32}");
     // 故障码格式为四位十六进制字符，例如 3001、A02F。
-    private static final Pattern FAULT_CODE = Pattern.compile("[0-9A-Fa-f]{4}");
+    private static final Pattern DEFINED_FAULT_CODE = Pattern.compile("[1345][0-9A-Fa-f]{3}");
     // 允许设备时钟最多慢 5 分钟、快 1 分钟，用于降低旧报文和重放报文风险。
     private static final long MAX_PAST_SECONDS = 300;
     private static final long MAX_FUTURE_SECONDS = 60;
 
     private final ChargingProtocolCodec codec;
     private final ReportRepository repository;
+    private final Set<String> registeredDeviceSns;
 
     public ReportService(ChargingProtocolCodec codec, ReportRepository repository) {
+        this(codec, repository, Set.of("pile001", "pile002", "pile003"));
+    }
+
+    public ReportService(ChargingProtocolCodec codec, ReportRepository repository,
+                         Set<String> registeredDeviceSns) {
         this.codec = codec;
         this.repository = repository;
+        if (registeredDeviceSns == null || registeredDeviceSns.isEmpty()) {
+            throw new IllegalArgumentException("At least one registered device SN is required");
+        }
+        for (String deviceSn : registeredDeviceSns) {
+            if (deviceSn == null || !SN.matcher(deviceSn).matches()) {
+                throw new IllegalArgumentException("Invalid registered device SN: " + deviceSn);
+            }
+        }
+        this.registeredDeviceSns = Set.copyOf(registeredDeviceSns);
     }
 
     /**
@@ -66,15 +82,18 @@ public final class ReportService {
     }
 
     /** 集中保存所有上报字段的业务规则，任何接入方式都必须经过这里。 */
-    private static void validate(ChargingReport report) {
+    private void validate(ChargingReport report) {
         validateSn(report.deviceSn());
         validateRange("voltage", report.voltage(), 0, 1_000);
         validateRange("current", report.current(), 0, 1_000);
 
         String faultCode = report.faultCode();
         // 非空故障码必须满足格式要求；FAULT 状态还必须强制提供故障码。
-        if (!faultCode.isEmpty() && !FAULT_CODE.matcher(faultCode).matches()) {
-            throw new ValidationException("faultCode must be empty or four hexadecimal characters");
+        if (faultCode == null) {
+            throw new ValidationException("faultCode must not be null");
+        }
+        if (!faultCode.isEmpty() && !DEFINED_FAULT_CODE.matcher(faultCode).matches()) {
+            throw new ValidationException("faultCode must be empty or a defined 1xxx/3xxx/4xxx/5xxx code");
         }
         if (report.status() == ChargingStatus.FAULT && faultCode.isEmpty()) {
             throw new ValidationException("faultCode is required when status is FAULT");
@@ -88,9 +107,12 @@ public final class ReportService {
         }
     }
 
-    private static void validateSn(String deviceSn) {
+    private void validateSn(String deviceSn) {
         if (deviceSn == null || !SN.matcher(deviceSn).matches()) {
             throw new ValidationException("deviceSn must contain 1-32 ASCII letters or digits");
+        }
+        if (!registeredDeviceSns.contains(deviceSn)) {
+            throw new ValidationException("Unsupported deviceSn: " + deviceSn);
         }
     }
 

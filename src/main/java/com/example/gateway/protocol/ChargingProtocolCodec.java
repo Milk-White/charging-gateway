@@ -68,9 +68,11 @@ public final class ChargingProtocolCodec {
         }
 
         int sequence = 0;
+        boolean sequencePresent = false;
         int functionCode = 0;
         long timestamp = 0;
         boolean response = false;
+        boolean responsePresent = false;
         byte[] data = null;
         String signature = "";
         ProtoWire.Reader reader = new ProtoWire.Reader(frame);
@@ -80,12 +82,32 @@ public final class ChargingProtocolCodec {
             int field = tag >>> 3;
             int wire = tag & 7;
             switch (field) {
-                case 1 -> sequence = reader.readInt32();
-                case 2 -> functionCode = reader.readInt32();
-                case 3 -> timestamp = Integer.toUnsignedLong(reader.readInt32());
-                case 4 -> response = reader.readBool();
-                case 10 -> data = reader.readBytes();
-                case 11 -> signature = reader.readString();
+                case 1 -> {
+                    requireWireType(field, wire, ProtoWire.VARINT);
+                    sequence = reader.readInt32();
+                    sequencePresent = true;
+                }
+                case 2 -> {
+                    requireWireType(field, wire, ProtoWire.VARINT);
+                    functionCode = reader.readInt32();
+                }
+                case 3 -> {
+                    requireWireType(field, wire, ProtoWire.VARINT);
+                    timestamp = Integer.toUnsignedLong(reader.readInt32());
+                }
+                case 4 -> {
+                    requireWireType(field, wire, ProtoWire.VARINT);
+                    response = reader.readBool();
+                    responsePresent = true;
+                }
+                case 10 -> {
+                    requireWireType(field, wire, ProtoWire.LENGTH_DELIMITED);
+                    data = reader.readBytes();
+                }
+                case 11 -> {
+                    requireWireType(field, wire, ProtoWire.LENGTH_DELIMITED);
+                    signature = reader.readString();
+                }
                 default -> reader.skip(wire);
             }
         }
@@ -93,6 +115,12 @@ public final class ChargingProtocolCodec {
         // 外层协议校验：只接受实时上报请求，且必须包含时间戳、正确签名和业务数据。
         if (functionCode != REALTIME_DATA_FUNCTION) {
             throw new ProtocolException("Unsupported function code: " + functionCode);
+        }
+        if (!sequencePresent) {
+            throw new ProtocolException("Package sequence is required");
+        }
+        if (!responsePresent) {
+            throw new ProtocolException("Request/response flag is required");
         }
         if (response) {
             throw new ProtocolException("A response frame cannot be accepted as an upload");
@@ -136,17 +164,30 @@ public final class ChargingProtocolCodec {
             int field = tag >>> 3;
             int wire = tag & 7;
             switch (field) {
-                case 1 -> sn = reader.readString();
+                case 1 -> {
+                    requireWireType(field, wire, ProtoWire.LENGTH_DELIMITED);
+                    sn = reader.readString();
+                }
                 case 2 -> {
+                    requireWireType(field, wire, ProtoWire.VARINT);
                     try {
                         status = ChargingStatus.fromCode(reader.readInt32());
                     } catch (IllegalArgumentException e) {
                         throw new ProtocolException(e.getMessage(), e);
                     }
                 }
-                case 3 -> voltage = reader.readDouble();
-                case 4 -> current = reader.readDouble();
-                case 5 -> faultCode = reader.readString();
+                case 3 -> {
+                    requireWireType(field, wire, ProtoWire.FIXED64);
+                    voltage = reader.readDouble();
+                }
+                case 4 -> {
+                    requireWireType(field, wire, ProtoWire.FIXED64);
+                    current = reader.readDouble();
+                }
+                case 5 -> {
+                    requireWireType(field, wire, ProtoWire.LENGTH_DELIMITED);
+                    faultCode = reader.readString();
+                }
                 default -> reader.skip(wire);
             }
         }
@@ -155,6 +196,13 @@ public final class ChargingProtocolCodec {
         }
         return new ChargingReport(sn, status, voltage, current, faultCode,
                 timestamp, sequence, Instant.now().toEpochMilli());
+    }
+
+    private static void requireWireType(int field, int actual, int expected) {
+        if (actual != expected) {
+            throw new ProtocolException("Invalid wire type for field " + field
+                    + ": expected " + expected + " but was " + actual);
+        }
     }
 
     /**

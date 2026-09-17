@@ -4,6 +4,8 @@ import com.example.gateway.domain.ChargingReport;
 import com.example.gateway.domain.ChargingStatus;
 import com.example.gateway.protocol.ChargingProtocolCodec;
 import com.example.gateway.protocol.ProtocolException;
+import com.example.gateway.protocol.ProtocolEdgeTests;
+import com.example.gateway.http.JsonTests;
 import com.example.gateway.repository.FileReportRepository;
 import com.example.gateway.service.ReportService;
 import com.example.gateway.service.ValidationException;
@@ -14,8 +16,8 @@ import java.time.Instant;
 /**
  * 不依赖第三方测试框架的项目自测入口。
  *
- * <p>用途：验证协议编解码、签名拒绝、文件持久化及字段校验四条关键链路。
- * 运行成功时输出 {@code PASS: 4 tests}。</p>
+ * <p>用途：验证协议编解码、签名拒绝、严格格式检查、设备登记、文件持久化及字段校验。
+ * 运行成功时输出 {@code PASS: 12 tests}。</p>
  */
 public final class AllTests {
     private static int tests;
@@ -25,6 +27,9 @@ public final class AllTests {
         rejectsBrokenSignature();
         persistsAndQueriesReports();
         rejectsInvalidFields();
+        acceptsKnownFaultCode();
+        tests += ProtocolEdgeTests.run();
+        tests += JsonTests.run();
         System.out.println("PASS: " + tests + " tests");
     }
 
@@ -73,6 +78,20 @@ public final class AllTests {
         expect(ValidationException.class, () -> service.acceptFrame(codec.encodeReport(invalid)));
         ChargingReport missingFault = sample("pile003", ChargingStatus.FAULT, "");
         expect(ValidationException.class, () -> service.acceptFrame(codec.encodeReport(missingFault)));
+        ChargingReport unsupportedSn = sample("unknownDevice999", ChargingStatus.IDLE, "");
+        expect(ValidationException.class, () -> service.acceptFrame(codec.encodeReport(unsupportedSn)));
+        ChargingReport undefinedFault = sample("pile003", ChargingStatus.FAULT, "FFFF");
+        expect(ValidationException.class, () -> service.acceptFrame(codec.encodeReport(undefinedFault)));
+        tests++;
+    }
+
+    private static void acceptsKnownFaultCode() throws Exception {
+        var directory = Files.createTempDirectory("charging-gateway-known-fault-");
+        ChargingProtocolCodec codec = new ChargingProtocolCodec("test-secret");
+        ReportService service = new ReportService(codec, new FileReportRepository(directory));
+        ChargingReport accepted = service.acceptFrame(
+                codec.encodeReport(sample("pile003", ChargingStatus.FAULT, "3001")));
+        check(accepted.faultCode().equals("3001"), "known fault code");
         tests++;
     }
 

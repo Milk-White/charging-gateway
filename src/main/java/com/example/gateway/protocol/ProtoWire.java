@@ -98,7 +98,11 @@ final class ProtoWire {
         }
 
         byte[] readBytes() {
-            int length = Math.toIntExact(readVarint());
+            long encodedLength = readVarint();
+            if (encodedLength > Integer.MAX_VALUE) {
+                throw new ProtocolException("Protobuf length exceeds supported range");
+            }
+            int length = (int) encodedLength;
             require(length);
             byte[] result = Arrays.copyOfRange(data, position, position + length);
             position += length;
@@ -130,6 +134,9 @@ final class ProtoWire {
             for (int shift = 0; shift < 64; shift += 7) {
                 require(1);
                 int current = data[position++] & 0xff;
+                if (shift == 63 && (current & 0xfe) != 0) {
+                    throw new ProtocolException("Malformed protobuf varint");
+                }
                 result |= (long) (current & 0x7f) << shift;
                 if ((current & 0x80) == 0) {
                     return result;
@@ -145,7 +152,7 @@ final class ProtoWire {
 
         private void require(int length) {
             // 所有读取动作先检查边界，防止截断报文导致数组越界。
-            if (length < 0 || position + length > data.length) {
+            if (length < 0 || length > data.length - position) {
                 throw new ProtocolException("Truncated protobuf frame");
             }
         }
