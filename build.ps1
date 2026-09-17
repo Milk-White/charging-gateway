@@ -15,6 +15,10 @@ javac --release 21 -encoding UTF-8 -d $classes $mainSources
 if ($LASTEXITCODE -ne 0) {
     throw "Main source compilation failed with exit code $LASTEXITCODE"
 }
+$resources = Join-Path $project 'src\main\resources'
+if (Test-Path -LiteralPath $resources) {
+    Copy-Item -Path (Join-Path $resources '*') -Destination $classes -Recurse -Force
+}
 javac --release 21 -encoding UTF-8 -cp $classes -d $testClasses $testSources
 if ($LASTEXITCODE -ne 0) {
     throw "Test source compilation failed with exit code $LASTEXITCODE"

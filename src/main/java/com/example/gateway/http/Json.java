@@ -61,6 +61,17 @@ final class Json {
         return out.append(']').toString();
     }
 
+    static String strings(List<String> values) {
+        StringBuilder out = new StringBuilder("[");
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                out.append(',');
+            }
+            out.append('"').append(escape(values.get(i))).append('"');
+        }
+        return out.append(']').toString();
+    }
+
     static String error(String code, String message) {
         return "{\"error\":\"" + escape(code) + "\",\"message\":\"" + escape(message) + "\"}";
     }

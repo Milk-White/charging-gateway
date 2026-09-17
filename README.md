@@ -12,17 +12,31 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\run.ps1
 ```
 
-服务默认监听 `http://localhost:8080`，数据追加写入 `data/reports.tsv`。另开一个 PowerShell 执行：
+服务默认监听 `http://localhost:8080`，数据追加写入 `data/reports.tsv`。启动后直接用浏览器打开 `http://localhost:8080/`，即可使用内置中文监控大屏。另开一个 PowerShell 执行：
 
 ```powershell
 .\demo.ps1
 ```
 
-也可在 IDEA 中运行 `com.example.gateway.GatewayApplication`。正式自测入口是 `build.ps1`，成功时应显示 `PASS: 12 tests`；在 IDEA 中也可直接运行 `com.example.gateway.AllTests`。
+也可在 IDEA 中运行 `com.example.gateway.GatewayApplication`。正式自测入口是 `build.ps1`，成功时应显示 `PASS: 15 tests`；在 IDEA 中也可直接运行 `com.example.gateway.AllTests`。
+
+## 监控大屏
+
+浏览器打开 `http://localhost:8080/` 后，可直接完成：
+
+- 查看网关健康状态和已登记设备清单。
+- 切换 `pile001`、`pile002`、`pile003`，查看最新状态、接收时间、协议时间和帧序号。
+- 查看电压、电流趋势图及最近 50 条历史记录。
+- 在网页中填写状态、电压、电流和故障码，发送模拟设备上报。
+- 每 5 秒自动刷新，也可以手动刷新。
+
+页面由 Java 服务直接提供，HTML、CSS 和 JavaScript 均在项目内，无需安装 Node.js，也不依赖外部 CDN。网页模拟上报仍然先编码为正式二进制协议帧，再经过解码、验签、业务校验和持久化。
 
 ## 接口
 
 - `GET /health`：健康检查。
+- `GET /`：打开中文设备监控大屏。
+- `GET /api/devices`：查询已登记设备编号清单。
 - `POST /api/simulator/report`：使用 JSON 模拟设备上报，服务内部先编码为 Protobuf wire frame，再按正式接入链路解码、验签、校验和落库。
 - `POST /api/reports`：接收 Base64 编码的二进制协议帧；请求体可直接为 Base64 文本，也可为 `{"frameBase64":"..."}`。
 - `GET /api/devices/{sn}/latest`：查询设备最新状态。
@@ -62,8 +76,9 @@ Set-ExecutionPolicy -Scope Process Bypass
 3. 打开 `src/main/java/com/example/gateway/GatewayApplication.java`。
 4. 点击 `main` 方法左侧绿色三角，再点“运行 GatewayApplication.main()”。
 5. 控制台看到 `Charging gateway started at http://localhost:8080` 后，不要关闭运行窗口。
-6. 打开项目目录的 PowerShell，执行 `Set-ExecutionPolicy -Scope Process Bypass`，再执行 `.\demo.ps1`。
-7. 看到最后一行“演示完成”即表示完整流程通过。
+6. 浏览器打开 `http://localhost:8080/`，先演示设备切换、趋势图和网页模拟上报。
+7. 如需演示脚本，再打开项目目录的 PowerShell，执行 `Set-ExecutionPolicy -Scope Process Bypass`，然后执行 `.\demo.ps1`。
+8. 网页上报成功或脚本出现“演示完成”，均表示完整链路通过。
 
 如果提示 8080 端口被占用，可在 IDEA 运行配置的 VM options 中加入 `-Dgateway.port=8081`，并使用 `.\demo.ps1 -BaseUrl http://localhost:8081`。
 
@@ -71,7 +86,8 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 ```text
 src/main/java      业务源码
-src/test/java      12 项无第三方依赖的自测
+src/main/resources 内置监控大屏页面
+src/test/java      15 项无第三方依赖的自测
 DESIGN.md          架构、选型、风险和自测说明
 build.ps1          编译并运行测试
 run.ps1            编译、测试并启动服务

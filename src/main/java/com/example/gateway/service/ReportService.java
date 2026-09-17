@@ -81,6 +81,11 @@ public final class ReportService {
         return repository.history(deviceSn, limit);
     }
 
+    /** 返回稳定排序的已登记设备清单，供监控页面和运维接口使用。 */
+    public List<String> registeredDevices() {
+        return registeredDeviceSns.stream().sorted().toList();
+    }
+
     /** 集中保存所有上报字段的业务规则，任何接入方式都必须经过这里。 */
     private void validate(ChargingReport report) {
         validateSn(report.deviceSn());

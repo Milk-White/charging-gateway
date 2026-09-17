@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>充电桩设备接入网关 · 监控大屏</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07111f;
+      --panel: rgba(13, 29, 49, .86);
+      --panel-solid: #0d1d31;
+      --line: rgba(147, 197, 253, .16);
+      --text: #eef7ff;
+      --muted: #91a8be;
+      --cyan: #32d6ff;
+      --blue: #4f8cff;
+      --green: #3ee6a5;
+      --yellow: #ffd166;
+      --red: #ff6b7a;
+      --shadow: 0 22px 60px rgba(0, 0, 0, .32);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 88% 4%, rgba(50, 214, 255, .14), transparent 28rem),
+        radial-gradient(circle at 0 80%, rgba(79, 140, 255, .12), transparent 30rem),
+        linear-gradient(145deg, #06101d 0%, #09182a 52%, #06101b 100%);
+      font: 14px/1.55 "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .22;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, .025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .025) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: linear-gradient(to bottom, black, transparent 92%);
+    }
+
+    button, input, select { font: inherit; }
+
+    .shell {
+      position: relative;
+      width: min(1480px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 24px 0 42px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 20px;
+      padding: 4px 2px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 14px; }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 46px;
+      height: 46px;
+      border: 1px solid rgba(50, 214, 255, .42);
+      border-radius: 15px;
+      background: linear-gradient(145deg, rgba(50, 214, 255, .2), rgba(79, 140, 255, .08));
+      box-shadow: inset 0 0 24px rgba(50, 214, 255, .1), 0 0 24px rgba(50, 214, 255, .08);
+      color: var(--cyan);
+      font-size: 25px;
+    }
+
+    h1 { margin: 0; font-size: clamp(20px, 2.2vw, 30px); letter-spacing: .04em; }
+    .subtitle { margin-top: 2px; color: var(--muted); font-size: 13px; }
+
+    .header-meta { display: flex; align-items: center; gap: 12px; }
+    .clock { color: #bed0e3; font-variant-numeric: tabular-nums; text-align: right; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 30px;
+      padding: 5px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.035);
+      color: #cbd9e7;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      box-shadow: 0 0 0 4px rgba(145,168,190,.12);
+    }
+    .dot.up { background: var(--green); box-shadow: 0 0 0 4px rgba(62,230,165,.13), 0 0 14px rgba(62,230,165,.55); }
+    .dot.down { background: var(--red); box-shadow: 0 0 0 4px rgba(255,107,122,.12); }
+
+    .toolbar, .panel, .metric {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+      padding: 14px 16px;
+      border-radius: 18px;
+    }
+
+    .toolbar-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .toolbar-label { color: var(--muted); }
+
+    select, input {
+      min-height: 40px;
+      border: 1px solid rgba(147,197,253,.19);
+      border-radius: 11px;
+      outline: none;
+      background: #0a192b;
+      color: var(--text);
+      padding: 8px 11px;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    select:focus, input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(50,214,255,.1); }
+
+    button {
+      min-height: 40px;
+      border: 0;
+      border-radius: 11px;
+      padding: 8px 15px;
+      color: #04131e;
+      background: linear-gradient(135deg, var(--cyan), #79e7ff);
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(50,214,255,.16);
+      transition: transform .16s, filter .16s;
+    }
+    button:hover { transform: translateY(-1px); filter: brightness(1.06); }
+    button:disabled { cursor: wait; opacity: .58; transform: none; }
+    button.secondary { color: #dbeaff; background: rgba(255,255,255,.07); box-shadow: none; border: 1px solid var(--line); }
+
+    .switch { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; }
+    .switch input { width: 17px; height: 17px; min-height: auto; accent-color: var(--cyan); }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .metric { position: relative; overflow: hidden; padding: 18px; border-radius: 18px; min-height: 132px; }
+    .metric::after {
+      content: "";
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      right: -32px;
+      bottom: -44px;
+      border-radius: 50%;
+      background: rgba(50,214,255,.07);
+    }
+    .metric-label { color: var(--muted); font-size: 13px; }
+    .metric-value { margin-top: 13px; font-size: clamp(23px, 2.4vw, 34px); line-height: 1.1; font-weight: 750; font-variant-numeric: tabular-nums; }
+    .metric-value small { margin-left: 5px; color: var(--muted); font-size: 13px; font-weight: 500; }
+    .metric-note { margin-top: 9px; color: #a8bfd2; font-size: 12px; }
+
+    .status-value { color: var(--green); }
+    .status-value.fault { color: var(--red); }
+    .status-value.offline { color: var(--muted); }
+    .status-value.idle { color: var(--yellow); }
+
+    .grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(330px, .85fr); gap: 18px; }
+    .column { display: grid; gap: 18px; align-content: start; }
+    .panel { border-radius: 20px; overflow: hidden; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 17px 19px; border-bottom: 1px solid var(--line); }
+    .panel-title { font-size: 16px; font-weight: 700; }
+    .panel-note { color: var(--muted); font-size: 12px; }
+    .panel-body { padding: 18px; }
+
+    .chart-wrap { position: relative; height: 320px; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .legend { display: flex; gap: 16px; color: var(--muted); font-size: 12px; }
+    .legend span::before { content: ""; display: inline-block; width: 18px; height: 3px; margin-right: 6px; border-radius: 2px; vertical-align: middle; background: var(--cyan); }
+    .legend span:last-child::before { background: var(--green); }
+
+    .table-wrap { overflow: auto; max-height: 390px; }
+    table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid rgba(147,197,253,.1); text-align: left; }
+    th { position: sticky; top: 0; z-index: 1; color: #a7bdd2; background: var(--panel-solid); font-size: 12px; font-weight: 600; }
+    td { color: #dce9f4; font-variant-numeric: tabular-nums; }
+    tbody tr:hover { background: rgba(50,214,255,.035); }
+
+    .state-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 72px; padding: 4px 8px; border-radius: 999px; color: var(--green); background: rgba(62,230,165,.09); border: 1px solid rgba(62,230,165,.18); font-size: 12px; }
+    .state-chip.FAULT { color: var(--red); background: rgba(255,107,122,.09); border-color: rgba(255,107,122,.2); }
+    .state-chip.IDLE { color: var(--yellow); background: rgba(255,209,102,.08); border-color: rgba(255,209,102,.2); }
+    .state-chip.OFFLINE { color: var(--muted); background: rgba(145,168,190,.08); border-color: rgba(145,168,190,.17); }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .field { display: grid; gap: 6px; }
+    .field.full { grid-column: 1 / -1; }
+    .field label { color: var(--muted); font-size: 12px; }
+    .form-actions { display: flex; align-items: center; gap: 10px; margin-top: 15px; }
+
+    .device-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .device-pill { padding: 7px 10px; border-radius: 10px; color: #cfe4f5; background: rgba(255,255,255,.045); border: 1px solid var(--line); }
+    .device-pill.active { color: var(--cyan); border-color: rgba(50,214,255,.35); background: rgba(50,214,255,.08); }
+
+    .log { display: grid; gap: 8px; max-height: 180px; overflow: auto; }
+    .log-item { display: grid; grid-template-columns: 70px 1fr; gap: 9px; color: #b6c9db; font-size: 12px; }
+    .log-time { color: #6f8ba4; font-variant-numeric: tabular-nums; }
+    .empty { display: grid; place-items: center; min-height: 150px; color: var(--muted); text-align: center; }
+
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 10;
+      max-width: min(420px, calc(100% - 44px));
+      padding: 13px 16px;
+      border: 1px solid rgba(62,230,165,.27);
+      border-radius: 13px;
+      background: #102c28;
+      box-shadow: var(--shadow);
+      color: #dffcf2;
+      transform: translateY(18px);
+      opacity: 0;
+      pointer-events: none;
+      transition: .2s ease;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.error { border-color: rgba(255,107,122,.3); background: #311820; color: #ffe4e8; }
+
+    @media (max-width: 1040px) {
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 680px) {
+      .shell { width: min(100% - 22px, 1480px); padding-top: 14px; }
+      .topbar, .toolbar { align-items: flex-start; flex-direction: column; }
+      .header-meta { width: 100%; justify-content: space-between; }
+      .metrics { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: auto; }
+      .metric { min-height: 112px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">⚡</div>
+        <div>
+          <h1>充电桩设备接入网关</h1>
+          <div class="subtitle">实时状态 · 协议校验 · 历史趋势 · 模拟上报</div>
+        </div>
+      </div>
+      <div class="header-meta">
+        <div class="badge"><span id="healthDot" class="dot"></span><span id="healthText">正在连接</span></div>
+        <div id="clock" class="clock">--</div>
+      </div>
+    </header>
+
+    <section class="toolbar" aria-label="查询工具栏">
+      <div class="toolbar-group">
+        <span class="toolbar-label">当前设备</span>
+        <select id="deviceSelect" aria-label="选择设备"></select>
+        <button id="refreshButton" type="button">立即刷新</button>
+      </div>
+      <div class="toolbar-group">
+        <label class="switch"><input id="autoRefresh" type="checkbox" checked>每 5 秒自动刷新</label>
+        <span id="lastRefresh" class="panel-note">尚未刷新</span>
+      </div>
+    </section>
+
+    <section class="metrics" aria-label="最新遥测数据">
+      <article class="metric">
+        <div class="metric-label">设备状态</div>
+        <div id="statusValue" class="metric-value status-value offline">暂无数据</div>
+        <div id="statusNote" class="metric-note">等待设备上报</div>
+      </article>
+      <article class="metric">
+        <div class="metric-label">实时电压</div>
+        <div class="metric-value"><span id="voltageValue">--</span><small>V</small></div>
+        <div class="metric-note">合法范围 0–1000 V</div>
+      </article>
+      <article class="metric">
+        <div class="metric-label">实时电流</div>
+        <div class="metric-value"><span id="currentValue">--</span><small>A</small></div>
+        <div class="metric-note">合法范围 0–1000 A</div>
+      </article>
+      <article class="metric">
+        <div class="metric-label">协议帧信息</div>
+        <div class="metric-value"><span id="sequenceValue">--</span><small>帧序号</small></div>
+        <div id="faultValue" class="metric-note">故障码：--</div>
+      </article>
+    </section>
+
+    <main class="grid">
+      <div class="column">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">电压 / 电流趋势</div>
+              <div class="panel-note">最近 30 条合法上报 · 左轴电压，右轴电流</div>
+            </div>
+            <div class="legend"><span>电压</span><span>电流</span></div>
+          </div>
+          <div class="panel-body"><div class="chart-wrap"><canvas id="trendChart"></canvas></div></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">历史上报记录</div>
+              <div id="historySummary" class="panel-note">等待加载</div>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>接收时间</th><th>协议时间</th><th>帧序号</th><th>设备编码</th><th>状态</th><th>电压/V</th><th>电流/A</th><th>故障码</th></tr></thead>
+              <tbody id="historyBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <aside class="column">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">模拟设备上报</div>
+              <div class="panel-note">数据仍会经过协议编码、验签和业务校验</div>
+            </div>
+          </div>
+          <div class="panel-body">
+            <form id="reportForm">
+              <div class="form-grid">
+                <div class="field full"><label for="formDevice">设备编码</label><select id="formDevice"></select></div>
+                <div class="field"><label for="formStatus">设备状态</label><select id="formStatus"><option value="CHARGING">充电中</option><option value="IDLE">空闲</option><option value="FAULT">故障</option><option value="OFFLINE">离线</option></select></div>
+                <div class="field"><label for="formFault">故障码</label><input id="formFault" maxlength="4" placeholder="正常状态留空"></div>
+                <div class="field"><label for="formVoltage">电压 / V</label><input id="formVoltage" type="number" min="0" max="1000" step="0.1" value="380.5" required></div>
+                <div class="field"><label for="formCurrent">电流 / A</label><input id="formCurrent" type="number" min="0" max="1000" step="0.01" value="32.25" required></div>
+              </div>
+              <div class="form-actions"><button id="submitButton" type="submit">发送模拟上报</button><span id="formHint" class="panel-note">正常状态无需故障码</span></div>
+            </form>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div class="panel-title">已登记设备</div><div id="deviceCount" class="panel-note">0 台</div></div>
+          <div class="panel-body"><div id="deviceList" class="device-list"></div></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div class="panel-title">运行信息</div></div>
+          <div class="panel-body"><div id="eventLog" class="log"></div></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const state = { devices: [], selected: '', history: [], timer: null };
+    const $ = id => document.getElementById(id);
+    const statusLabels = { CHARGING: '充电中', IDLE: '空闲', FAULT: '故障', OFFLINE: '离线' };
+
+    function formatTime(value, milliseconds = true) {
+      if (!value) return '--';
+      const date = new Date(milliseconds ? value : value * 1000);
+      return new Intl.DateTimeFormat('zh-CN', {
+        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+      }).format(date);
+    }
+
+    function setClock() {
+      $('clock').textContent = new Intl.DateTimeFormat('zh-CN', {
+        year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+      }).format(new Date());
+    }
+
+    async function api(url, options = {}) {
+      const response = await fetch(url, { cache: 'no-store', ...options });
+      const text = await response.text();
+      let data;
+      try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+      if (!response.ok) {
+        const error = new Error(data?.message || `请求失败：HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+      return data;
+    }
+
+    function log(message) {
+      const item = document.createElement('div');
+      item.className = 'log-item';
+      const time = document.createElement('span');
+      time.className = 'log-time';
+      time.textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+      const content = document.createElement('span');
+      content.textContent = message;
+      item.append(time, content);
+      $('eventLog').prepend(item);
+      while ($('eventLog').children.length > 8) $('eventLog').lastElementChild.remove();
+    }
+
+    let toastTimer;
+    function toast(message, isError = false) {
+      clearTimeout(toastTimer);
+      $('toast').textContent = message;
+      $('toast').className = `toast show${isError ? ' error' : ''}`;
+      toastTimer = setTimeout(() => $('toast').className = 'toast', 3200);
+    }
+
+    async function checkHealth() {
+      try {
+        const health = await api('/health');
+        const up = health.status === 'UP';
+        $('healthDot').className = `dot ${up ? 'up' : 'down'}`;
+        $('healthText').textContent = up ? '网关运行正常' : '网关状态异常';
+      } catch (error) {
+        $('healthDot').className = 'dot down';
+        $('healthText').textContent = '网关连接失败';
+      }
+    }
+
+    async function loadDevices() {
+      state.devices = await api('/api/devices');
+      if (!state.devices.length) throw new Error('没有登记设备');
+      state.selected = state.devices.includes(state.selected) ? state.selected : state.devices[0];
+      for (const select of [$('deviceSelect'), $('formDevice')]) {
+        select.replaceChildren(...state.devices.map(device => {
+          const option = document.createElement('option');
+          option.value = option.textContent = device;
+          return option;
+        }));
+      }
+      $('deviceSelect').value = state.selected;
+      $('formDevice').value = state.selected;
+      $('deviceCount').textContent = `${state.devices.length} 台`;
+      renderDeviceList();
+    }
+
+    function renderDeviceList() {
+      $('deviceList').replaceChildren(...state.devices.map(device => {
+        const pill = document.createElement('span');
+        pill.className = `device-pill${device === state.selected ? ' active' : ''}`;
+        pill.textContent = device;
+        return pill;
+      }));
+    }
+
+    function renderLatest(report) {
+      const status = report?.status;
+      $('statusValue').textContent = status ? statusLabels[status] || status : '暂无数据';
+      $('statusValue').className = `metric-value status-value ${status ? status.toLowerCase() : 'offline'}`;
+      $('statusNote').textContent = report ? `接收于 ${formatTime(report.receivedAt)}` : '等待设备上报';
+      $('voltageValue').textContent = report ? Number(report.voltage).toFixed(1) : '--';
+      $('currentValue').textContent = report ? Number(report.current).toFixed(2) : '--';
+      $('sequenceValue').textContent = report ? report.packageSequence : '--';
+      $('faultValue').textContent = `故障码：${report?.faultCode || '无'}`;
+    }
+
+    function renderHistory() {
+      $('historySummary').textContent = `当前展示 ${state.history.length} 条，最新记录在前`;
+      if (!state.history.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 8;
+        cell.innerHTML = '<div class="empty">该设备还没有上报记录<br>可以使用右侧表单发送一条模拟数据</div>';
+        row.append(cell);
+        $('historyBody').replaceChildren(row);
+      } else {
+        $('historyBody').replaceChildren(...state.history.map(report => {
+          const row = document.createElement('tr');
+          const values = [
+            formatTime(report.receivedAt), formatTime(report.protocolTimestamp, false), report.packageSequence,
+            report.deviceSn, report.status, Number(report.voltage).toFixed(1),
+            Number(report.current).toFixed(2), report.faultCode || '—'
+          ];
+          values.forEach((value, index) => {
+            const cell = document.createElement('td');
+            if (index === 4) {
+              const chip = document.createElement('span');
+              chip.className = `state-chip ${report.status}`;
+              chip.textContent = statusLabels[report.status] || report.status;
+              cell.append(chip);
+            } else {
+              cell.textContent = value;
+            }
+            row.append(cell);
+          });
+          return row;
+        }));
+      }
+      drawChart();
+    }
+
+    function drawChart() {
+      const canvas = $('trendChart');
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(rect.width * ratio));
+      canvas.height = Math.max(1, Math.floor(rect.height * ratio));
+      const ctx = canvas.getContext('2d');
+      ctx.scale(ratio, ratio);
+      const width = rect.width;
+      const height = rect.height;
+      const points = [...state.history].slice(0, 30).reverse();
+      ctx.clearRect(0, 0, width, height);
+      if (!points.length) {
+        ctx.fillStyle = '#91a8be';
+        ctx.font = '14px Microsoft YaHei';
+        ctx.textAlign = 'center';
+        ctx.fillText('暂无趋势数据', width / 2, height / 2);
+        return;
+      }
+
+      const padding = { left: 52, right: 48, top: 20, bottom: 38 };
+      const plotW = width - padding.left - padding.right;
+      const plotH = height - padding.top - padding.bottom;
+      const range = values => {
+        let min = Math.min(...values), max = Math.max(...values);
+        const extra = Math.max((max - min) * .16, Math.abs(max) * .04, 1);
+        return [Math.max(0, min - extra), max + extra];
+      };
+      const voltageRange = range(points.map(p => p.voltage));
+      const currentRange = range(points.map(p => p.current));
+      const y = (value, bounds) => padding.top + plotH - ((value - bounds[0]) / (bounds[1] - bounds[0])) * plotH;
+      const x = index => padding.left + (points.length === 1 ? plotW / 2 : index * plotW / (points.length - 1));
+
+      ctx.strokeStyle = 'rgba(147,197,253,.11)';
+      ctx.fillStyle = '#7891a8';
+      ctx.font = '11px Microsoft YaHei';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++) {
+        const py = padding.top + plotH * i / 4;
+        ctx.beginPath(); ctx.moveTo(padding.left, py); ctx.lineTo(width - padding.right, py); ctx.stroke();
+        const v = voltageRange[1] - (voltageRange[1] - voltageRange[0]) * i / 4;
+        const a = currentRange[1] - (currentRange[1] - currentRange[0]) * i / 4;
+        ctx.textAlign = 'right'; ctx.fillText(v.toFixed(0), padding.left - 8, py + 4);
+        ctx.textAlign = 'left'; ctx.fillText(a.toFixed(0), width - padding.right + 8, py + 4);
+      }
+
+      const line = (key, bounds, color) => {
+        ctx.beginPath();
+        points.forEach((point, index) => {
+          const px = x(index), py = y(point[key], bounds);
+          index ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+        });
+        ctx.strokeStyle = color; ctx.lineWidth = 2.4; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke();
+        points.forEach((point, index) => {
+          ctx.beginPath(); ctx.arc(x(index), y(point[key], bounds), 3.2, 0, Math.PI * 2);
+          ctx.fillStyle = '#07111f'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+        });
+      };
+      line('voltage', voltageRange, '#32d6ff');
+      line('current', currentRange, '#3ee6a5');
+
+      const labels = [...new Set([0, Math.floor((points.length - 1) / 2), points.length - 1])];
+      ctx.textAlign = 'center'; ctx.fillStyle = '#7891a8';
+      labels.forEach(index => ctx.fillText(formatTime(points[index].receivedAt).split(' ')[1] || formatTime(points[index].receivedAt), x(index), height - 11));
+    }
+
+    async function refreshData(silent = false) {
+      if (!state.selected) return;
+      $('refreshButton').disabled = true;
+      try {
+        let latest = null;
+        try { latest = await api(`/api/devices/${encodeURIComponent(state.selected)}/latest`); }
+        catch (error) { if (error.status !== 404) throw error; }
+        state.history = await api(`/api/devices/${encodeURIComponent(state.selected)}/history?limit=50`);
+        renderLatest(latest);
+        renderHistory();
+        renderDeviceList();
+        $('lastRefresh').textContent = `更新于 ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`;
+        if (!silent) log(`已刷新 ${state.selected} 的状态与历史记录`);
+      } catch (error) {
+        toast(error.message, true); log(`刷新失败：${error.message}`);
+      } finally {
+        $('refreshButton').disabled = false;
+      }
+    }
+
+    $('deviceSelect').addEventListener('change', event => {
+      state.selected = event.target.value;
+      $('formDevice').value = state.selected;
+      refreshData();
+    });
+    $('refreshButton').addEventListener('click', () => refreshData());
+    $('autoRefresh').addEventListener('change', scheduleRefresh);
+    $('formStatus').addEventListener('change', event => {
+      const fault = event.target.value === 'FAULT';
+      $('formFault').required = fault;
+      $('formFault').placeholder = fault ? '例如 3001（必填）' : '正常状态留空';
+      $('formHint').textContent = fault ? 'FAULT 状态必须填写合法故障码' : '正常状态无需故障码';
+    });
+
+    $('reportForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      $('submitButton').disabled = true;
+      const body = {
+        deviceSn: $('formDevice').value,
+        status: $('formStatus').value,
+        voltage: Number($('formVoltage').value),
+        current: Number($('formCurrent').value),
+        faultCode: $('formFault').value.trim()
+      };
+      try {
+        const accepted = await api('/api/simulator/report', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        state.selected = accepted.deviceSn;
+        $('deviceSelect').value = state.selected;
+        toast(`${accepted.deviceSn} 上报成功，帧序号 ${accepted.packageSequence}`);
+        log(`模拟上报成功：${accepted.deviceSn} / ${statusLabels[accepted.status] || accepted.status}`);
+        await refreshData(true);
+      } catch (error) {
+        toast(error.message, true); log(`模拟上报失败：${error.message}`);
+      } finally {
+        $('submitButton').disabled = false;
+      }
+    });
+
+    function scheduleRefresh() {
+      clearInterval(state.timer);
+      if ($('autoRefresh').checked) state.timer = setInterval(() => { checkHealth(); refreshData(true); }, 5000);
+    }
+
+    let resizeTimer;
+    window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(drawChart, 120); });
+
+    async function start() {
+      setClock(); setInterval(setClock, 1000);
+      await checkHealth();
+      try {
+        await loadDevices();
+        await refreshData(true);
+        log('监控大屏已连接网关服务');
+        scheduleRefresh();
+      } catch (error) {
+        toast(error.message, true); log(`初始化失败：${error.message}`);
+      }
+    }
+    start();
+  </script>
+</body>
+</html>

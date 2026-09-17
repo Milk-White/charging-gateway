@@ -43,6 +43,7 @@ public final class GatewayHttpServer {
         this.server.createContext("/api/reports", this::acceptFrame);
         this.server.createContext("/api/simulator/report", this::simulateReport);
         this.server.createContext("/api/devices", this::queryDevice);
+        this.server.createContext("/", this::dashboard);
     }
 
     public void start() {
@@ -58,6 +59,28 @@ public final class GatewayHttpServer {
             return;
         }
         send(exchange, 200, "{\"status\":\"UP\"}");
+    }
+
+    private void dashboard(HttpExchange exchange) throws IOException {
+        if (!method(exchange, "GET")) {
+            return;
+        }
+        String path = exchange.getRequestURI().getPath();
+        if (!"/".equals(path) && !"/index.html".equals(path)) {
+            send(exchange, 404, Json.error("NOT_FOUND", "Unknown resource"));
+            return;
+        }
+        byte[] body = DashboardPage.content().getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+        exchange.getResponseHeaders().set("Cache-Control", "no-store");
+        exchange.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
+        exchange.getResponseHeaders().set("Content-Security-Policy",
+                "default-src 'self'; style-src 'self' 'unsafe-inline'; " +
+                        "script-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:");
+        exchange.sendResponseHeaders(200, body.length);
+        try (var output = exchange.getResponseBody()) {
+            output.write(body);
+        }
     }
 
     private void acceptFrame(HttpExchange exchange) throws IOException {
@@ -107,6 +130,10 @@ public final class GatewayHttpServer {
             return;
         }
         try {
+            if ("/api/devices".equals(exchange.getRequestURI().getPath())) {
+                send(exchange, 200, Json.strings(service.registeredDevices()));
+                return;
+            }
             // 预期路径：/api/devices/{sn}/latest 或 /api/devices/{sn}/history。
             String[] parts = exchange.getRequestURI().getPath().split("/");
             if (parts.length != 5) {
