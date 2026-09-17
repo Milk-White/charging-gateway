@@ -11,6 +11,12 @@ import com.example.gateway.service.ValidationException;
 import java.nio.file.Files;
 import java.time.Instant;
 
+/**
+ * 不依赖第三方测试框架的项目自测入口。
+ *
+ * <p>用途：验证协议编解码、签名拒绝、文件持久化及字段校验四条关键链路。
+ * 运行成功时输出 {@code PASS: 4 tests}。</p>
+ */
 public final class AllTests {
     private static int tests;
 
@@ -23,6 +29,7 @@ public final class AllTests {
     }
 
     private static void codecRoundTrip() {
+        // 验证同一条数据经过“编码 -> 解码”后关键字段保持一致。
         ChargingProtocolCodec codec = new ChargingProtocolCodec("test-secret");
         ChargingReport source = sample("pile001", ChargingStatus.CHARGING, "");
         ChargingReport decoded = codec.decodeReport(codec.encodeReport(source));
@@ -33,6 +40,7 @@ public final class AllTests {
     }
 
     private static void rejectsBrokenSignature() {
+        // 篡改协议帧最后一个字节，验证签名不匹配时必须拒绝报文。
         ChargingProtocolCodec codec = new ChargingProtocolCodec("test-secret");
         byte[] frame = codec.encodeReport(sample("pile001", ChargingStatus.IDLE, ""));
         frame[frame.length - 1] ^= 1;
@@ -41,6 +49,7 @@ public final class AllTests {
     }
 
     private static void persistsAndQueriesReports() throws Exception {
+        // 验证保存、最新查询、历史查询以及重新创建仓库后的数据恢复。
         var directory = Files.createTempDirectory("charging-gateway-test-");
         ChargingProtocolCodec codec = new ChargingProtocolCodec("test-secret");
         FileReportRepository repository = new FileReportRepository(directory);
@@ -55,6 +64,7 @@ public final class AllTests {
     }
 
     private static void rejectsInvalidFields() throws Exception {
+        // 验证非法设备号和缺失故障码都会在业务校验阶段被拒绝。
         var directory = Files.createTempDirectory("charging-gateway-validation-");
         ChargingProtocolCodec codec = new ChargingProtocolCodec("test-secret");
         ReportService service = new ReportService(codec, new FileReportRepository(directory));

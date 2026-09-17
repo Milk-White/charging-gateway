@@ -6,6 +6,12 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
+/**
+ * 项目内部使用的最小 Protobuf wire 编解码工具。
+ *
+ * <p>用途：仅实现本项目需要的 varint、fixed64 和 length-delimited 类型，避免引入第三方
+ * Protobuf 运行库。它不是完整的通用 Protobuf 实现。</p>
+ */
 final class ProtoWire {
     static final int VARINT = 0;
     static final int FIXED64 = 1;
@@ -15,6 +21,7 @@ final class ProtoWire {
     private ProtoWire() {
     }
 
+    /** 写入 int32：先写字段 tag，再使用 varint 写入值。 */
     static void writeInt32(ByteArrayOutputStream out, int field, int value) {
         writeTag(out, field, VARINT);
         writeVarint(out, value & 0xffffffffL);
@@ -36,6 +43,7 @@ final class ProtoWire {
 
     static void writeDouble(ByteArrayOutputStream out, int field, double value) {
         writeTag(out, field, FIXED64);
+        // Protobuf fixed64 使用小端字节序，double 先转换为原始 64 位表示。
         out.writeBytes(ByteBuffer.allocate(8)
                 .order(ByteOrder.LITTLE_ENDIAN)
                 .putLong(Double.doubleToRawLongBits(value))
@@ -43,10 +51,12 @@ final class ProtoWire {
     }
 
     private static void writeTag(ByteArrayOutputStream out, int field, int wireType) {
+        // tag 的低 3 位保存 wire type，高位保存字段编号。
         writeVarint(out, ((long) field << 3) | wireType);
     }
 
     private static void writeVarint(ByteArrayOutputStream out, long value) {
+        // 每个字节使用 7 位保存数据，最高位表示后面是否还有字节。
         while ((value & ~0x7fL) != 0) {
             out.write((int) ((value & 0x7f) | 0x80));
             value >>>= 7;
@@ -59,6 +69,7 @@ final class ProtoWire {
         private int position;
 
         Reader(byte[] data) {
+            // 防御性复制，避免调用方在解析期间修改原始字节数组。
             this.data = Arrays.copyOf(data, data.length);
         }
 
@@ -104,6 +115,7 @@ final class ProtoWire {
         }
 
         void skip(int wireType) {
+            // 跳过未知字段，使新增字段不会破坏旧版本解析器。
             switch (wireType) {
                 case VARINT -> readVarint();
                 case FIXED64 -> advance(8);
@@ -132,6 +144,7 @@ final class ProtoWire {
         }
 
         private void require(int length) {
+            // 所有读取动作先检查边界，防止截断报文导致数组越界。
             if (length < 0 || position + length > data.length) {
                 throw new ProtocolException("Truncated protobuf frame");
             }

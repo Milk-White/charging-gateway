@@ -7,6 +7,12 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * 演示项目使用的轻量 JSON 辅助类。
+ *
+ * <p>用途：解析模拟接口所需的少量固定字段，并生成统一 JSON 响应。它不是完整 JSON
+ * 解析器；生产项目应替换为经过验证的 JSON 库。</p>
+ */
 final class Json {
     private Json() {
     }
@@ -30,6 +36,7 @@ final class Json {
     }
 
     static String report(ChargingReport report) {
+        // 将领域对象转换为接口返回格式，所有接口复用同一字段命名。
         return "{" +
                 "\"deviceSn\":\"" + escape(report.deviceSn()) + "\"," +
                 "\"status\":\"" + report.status().name() + "\"," +
@@ -43,6 +50,7 @@ final class Json {
     }
 
     static String reports(List<ChargingReport> reports) {
+        // 历史查询返回 JSON 数组，数组中的每一项复用 report 方法。
         StringBuilder out = new StringBuilder("[");
         for (int i = 0; i < reports.size(); i++) {
             if (i > 0) {
@@ -54,6 +62,7 @@ final class Json {
     }
 
     static String error(String code, String message) {
+        // 错误响应统一包含稳定错误码和可读错误信息。
         return "{\"error\":\"" + escape(code) + "\",\"message\":\"" + escape(message) + "\"}";
     }
 
@@ -62,6 +71,7 @@ final class Json {
     }
 
     private static String escape(String value) {
+        // 输出 JSON 前转义可能破坏字符串结构的特殊字符。
         return value.replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
