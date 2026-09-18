@@ -128,6 +128,18 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 注释重点解释“为什么这样写”和“这一行对前后流程有什么影响”；`package`、`import`、单独的花括号等 Java 语法行不重复添加无意义注释。
 
+### PowerShell 脚本说明
+
+| 脚本 | 作用 | 使用条件 |
+| --- | --- | --- |
+| `build.ps1` | 清理旧编译结果，编译正式代码和测试代码，复制网页资源并运行 24 项测试 | 可单独运行，不启动网关 |
+| `run.ps1` | 先运行 `build.ps1`，测试通过后启动 `GatewayApplication` | 不使用 IDEA 启动时运行，并保持窗口打开 |
+| `demo.ps1` | 演示健康检查、网页模拟上报、最新查询、历史查询和非法设备拦截 | 必须先启动网关 |
+| `protocol-demo.ps1` | 演示未登录拦截、101 登录、102 心跳和五类 103 | 必须先启动网关，正式汇报优先使用 |
+| `device-simulator.ps1` | 持续模拟登录校时、心跳、周期推送和失败重试 | 必须先启动网关，按 `Ctrl+C` 停止 |
+
+如果已经在 IDEA 中运行 `GatewayApplication.main()`，不要再执行 `run.ps1`，否则两个网关会同时抢占 8080 端口。推荐做法是：IDEA 启动网关，PowerShell 执行 `protocol-demo.ps1`，最后打开 `http://localhost:8080/` 查看页面结果。
+
 ```text
 src/main/java      业务源码
 src/main/resources 内置监控大屏页面
