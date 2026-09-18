@@ -111,6 +111,23 @@ Set-ExecutionPolicy -Scope Process Bypass
 | `FileReportRepository.java` | 网页摘要保存到 `reports.tsv` 并维护查询索引 |
 | `dashboard.html` | 登录状态、设备状态、趋势图、历史表和快速模拟上报 |
 
+### 小白源码阅读顺序
+
+核心链路文件已经按“每个关键字段、判断、循环和调用”补充中文教学注释。建议不要同时打开全部文件，按下面顺序阅读：
+
+1. `GatewayApplication.java`：先看系统如何把各层组件装配起来。
+2. `GatewayHttpServer.java`：看 HTTP 请求如何进入项目，又如何返回响应。
+3. `ChargingProtocolCodec.java`：看 101/102/103 公共帧、签名和正式响应。
+4. `ProtoWire.java`：看每个二进制字段如何写入和读取。
+5. `ChargingValueCodec.java`：看 103 的枪、点位及五种 oneof 值。
+6. `DeviceSessionService.java`：看密码校验、登录态、心跳刷新和 5 分钟超时。
+7. `DeviceProtocolService.java`：看三个功能码怎样分派并协调校验与双重存储。
+8. `ReportService.java`：看设备白名单、数值、故障码和时间窗口校验。
+9. `FileRealtimePushRepository.java` 与 `FileReportRepository.java`：看两份 TSV 怎样写入和查询。
+10. `Mqtt5GatewayAdapter.java`：最后看同一套协议怎样通过 MQTT 5.0 收发。
+
+注释重点解释“为什么这样写”和“这一行对前后流程有什么影响”；`package`、`import`、单独的花括号等 Java 语法行不重复添加无意义注释。
+
 ```text
 src/main/java      业务源码
 src/main/resources 内置监控大屏页面
